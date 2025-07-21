@@ -21,8 +21,9 @@ module Sound.Tidal.Stepwise where
 import Data.List (sort, sortOn, transpose)
 import Data.Maybe (catMaybes, fromJust, fromMaybe, isJust, mapMaybe)
 import Sound.Tidal.Core (stack, timecat, zoom, zoompat)
+import Sound.Tidal.UI (while)
 import Sound.Tidal.Pattern
-import Sound.Tidal.Utils (enumerate, nubOrd, pairs)
+import Sound.Tidal.Utils (applyWhen, enumerate, nubOrd, pairs)
 
 -- _lcmsteps :: [Pattern a] -> Maybe Time
 -- _lcmsteps pats = foldl1 lcmr <$> (sequence $ map steps pats)
@@ -120,16 +121,15 @@ stepalt groups = stepcat $ concat $ take (fromIntegral $ c * length groups) $ tr
   where
     c = foldl1 lcm $ map length groups
 
-{-
-s_while :: Pattern Bool -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
-s_while patb f pat@(Pattern _ (Just t) _) = while (_steps t patb) f pat
+stepwhile :: Pattern Bool -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
+stepwhile patb f pat@(Pattern _ (Just t) _) = while (pace t patb) f pat
 -- TODO raise exception?
-s_while _ _ pat = pat
+stepwhile _ _ pat = pat
 
 _s_nth :: Bool -> Bool -> Int -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
 _s_nth lastone stepwise n f pat
   | n <= 1 = pat
-  | otherwise = applyWhen stepwise (_fast t) $ s_cat $ applyWhen lastone reverse $ (f $ head cycles) : tail cycles
+  | otherwise = applyWhen stepwise (_fast t) $ stepcat $ applyWhen lastone reverse $ (f $ head cycles) : tail cycles
   where
     cycles = applyWhen lastone reverse $ separateCycles n $ applyWhen stepwise (_slow t) pat
     t = fromMaybe 1 $ steps pat
@@ -157,13 +157,13 @@ s_everycycle :: Pattern Int -> (Pattern a -> Pattern a) -> Pattern a -> Pattern 
 s_everycycle = s_nthcycle'
 
 -- | Like @s_taper@, but returns a list of repetitions
-s_taperlist :: Pattern a -> [Pattern a]
-s_taperlist pat@(Pattern _ (Just t) _) = pat : map (\r -> _s_sub r pat) [1 .. t]
+shrinklist :: Pattern a -> [Pattern a]
+shrinklist pat@(Pattern _ (Just t) _) = pat : map (\r -> _stepdrop r pat) [1 .. t]
 -- TODO exception?
-s_taperlist pat = [pat]
+shrinklist pat = [pat]
 
-s_taperlistBy :: Int -> Int -> Pattern a -> [Pattern a]
-s_taperlistBy amount times pat@(Pattern _ (Just t) _)
+shrinklistBy :: Int -> Int -> Pattern a -> [Pattern a]
+shrinklistBy amount times pat@(Pattern _ (Just t) _)
   | times == 1 = [pat]
   | times <= 0 = []
   | amount == 0 = [pat]
@@ -174,17 +174,20 @@ s_taperlistBy amount times pat@(Pattern _ (Just t) _)
     n = toRational $ abs amount
     start = t - toRational (max 0 $ n * toRational (times - 1))
     l = map (\i -> zoom (0, (start + (n * toRational i)) / t) pat) [0 .. times - 2] ++ [pat]
-s_taperlistBy _ _ _ = []
+shrinklistBy _ _ _ = []
 
 -- | Plays one fewer step from the pattern each repetition, down to nothing
-s_taper :: Pattern a -> Pattern a
-s_taper = s_cat . s_taperlist
+shrink :: Pattern a -> Pattern a
+shrink = stepcat . shrinklist
 
 -- | Plays one fewer step from the pattern each repetition, down to nothing
-_s_taperBy :: Int -> Int -> Pattern a -> Pattern a
-_s_taperBy amount times pat = s_cat $ s_taperlistBy amount times pat
+_shrinkBy :: Int -> Int -> Pattern a -> Pattern a
+_shrinkBy amount times pat = stepcat $ shrinklistBy amount times pat
 
 -- | Plays one fewer step from the pattern each repetition, down to nothing
-s_taperBy :: Pattern Int -> Pattern Int -> Pattern a -> Pattern a
-s_taperBy = s_patternify2 _s_taperBy
--}
+shrinkBy :: Pattern Int -> Pattern Int -> Pattern a -> Pattern a
+shrinkBy = s_patternify2 _shrinkBy
+
+-- | Plays one additional step from the pattern each repetition
+grow :: Pattern a -> Pattern a
+grow = stepcat . reverse . shrinklist
