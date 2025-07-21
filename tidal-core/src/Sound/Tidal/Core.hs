@@ -480,9 +480,15 @@ stack pats = (foldr overlay silence pats) {steps = t}
 (<~) :: Pattern Time -> Pattern a -> Pattern a
 (<~) = patternify' rotL
 
+early :: Pattern Time -> Pattern a -> Pattern a
+early = (<~)
+
 -- | Shifts a pattern forward in time by the given amount, expressed in cycles
 (~>) :: Pattern Time -> Pattern a -> Pattern a
 (~>) = patternify' rotR
+
+late :: Pattern Time -> Pattern a -> Pattern a
+late = (~>)
 
 -- | Slow down a pattern by the factors in the given time pattern, "squeezing"
 --  the pattern to fit the slot given in the time pattern. It is the slow analogue
