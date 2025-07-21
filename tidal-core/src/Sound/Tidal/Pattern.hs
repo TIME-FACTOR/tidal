@@ -839,8 +839,9 @@ rev p =
 
 revv :: Pattern a -> Pattern a
 revv = withResultArc revarc . withQueryArc revarc
-  where revarc (Arc s e) = Arc (0-e) (0-s)
-  
+  where
+    revarc (Arc s e) = Arc (0 - e) (0 - s)
+
 -- | Mark values in the first pattern which match with at least one
 -- value in the second pattern.
 matchManyToOne :: (b -> a -> Bool) -> Pattern a -> Pattern b -> Pattern (Bool, b)
