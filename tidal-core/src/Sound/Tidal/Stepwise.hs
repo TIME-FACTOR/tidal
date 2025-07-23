@@ -21,8 +21,8 @@ module Sound.Tidal.Stepwise where
 import Data.List (sort, sortOn, transpose)
 import Data.Maybe (catMaybes, fromJust, fromMaybe, isJust, mapMaybe)
 import Sound.Tidal.Core (stack, timecat, zoom, zoompat)
-import Sound.Tidal.UI (while)
 import Sound.Tidal.Pattern
+import Sound.Tidal.UI (while)
 import Sound.Tidal.Utils (applyWhen, enumerate, nubOrd, pairs)
 
 -- _lcmsteps :: [Pattern a] -> Maybe Time
