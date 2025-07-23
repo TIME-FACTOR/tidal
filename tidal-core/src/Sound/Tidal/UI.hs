@@ -249,7 +249,7 @@ normal :: (Floating a, Ord a) => Pattern a
 normal = do
   u1 <- max 0.001 <$> rand
   u2 <- rotL 1000 rand
-  let r1 = sqrt $ -(2 * log u1)
+  let r1 = sqrt $ - (2 * log u1)
       r2 = cos (2 * pi * u2)
       clamp n = max (-3) (min 3 n)
   pure $ clamp (r1 * r2 + 3) / 6
@@ -927,7 +927,7 @@ euclid = patternify2 _euclid
 _euclid :: Int -> Int -> Pattern a -> Pattern a
 _euclid n k a
   | n >= 0 = setSteps (Just $ toRational k) $ fastcat $ fmap (bool silence a) $ bjorklund (n, k)
-  | otherwise = setSteps (Just $ toRational k) $ fastcat $ fmap (bool a silence) $ bjorklund (-n, k)
+  | otherwise = setSteps (Just $ toRational k) $ fastcat $ fmap (bool a silence) $ bjorklund (- n, k)
 
 -- |
 --
@@ -946,7 +946,7 @@ euclidFull n k pa pb = setSteps (toRational <$> pureValue k) $ stack [euclid n k
 _euclidBool :: Int -> Int -> Pattern Bool -- TODO: add 'euclidBool'?
 _euclidBool n k
   | n >= 0 = setSteps (Just $ toRational k) $ fastFromList $ bjorklund (n, k)
-  | otherwise = setSteps (Just $ toRational k) $ fastFromList $ fmap not $ bjorklund (-n, k)
+  | otherwise = setSteps (Just $ toRational k) $ fastFromList $ fmap not $ bjorklund (- n, k)
 
 _euclid' :: Int -> Int -> Pattern a -> Pattern a
 _euclid' n k p = setSteps (Just $ toRational k) $ fastcat $ map (\x -> if x then p else silence) (bjorklund (n, k))
@@ -972,6 +972,34 @@ euclidOffBool = patternify3 _euclidOffBool
 _euclidOffBool :: Int -> Int -> Int -> Pattern Bool -> Pattern Bool
 _euclidOffBool _ 0 _ _ = silence
 _euclidOffBool n k s p = setSteps (Just $ toRational k) $ rotL (fromIntegral s % fromIntegral k) ((\a b -> if b then a else not a) <$> _euclidBool n k <*> p)
+
+_ish :: [Bool] -> Rational -> Pattern Bool
+_ish sq perc = stack $ map (\pos -> rotR pos $ fastGap (fromIntegral j) $ pure True) tweened
+  where
+    tweened :: [Time]
+    tweened = map (\(n', pos) -> (pos % j) + (((n' % n) - (pos % j)) * perc)) offs
+    n = fromIntegral $ length $ filter id sq
+    j = fromIntegral $ length sq
+    offs = offs' 0 0 $ sq
+    offs' _ _ ([]) = []
+    offs' trues pos (False : l) = offs' trues (pos + 1) l
+    offs' trues pos (True : l) = (trues, pos) : (offs' (trues + 1) (pos + 1) l)
+
+_euclidish :: Integer -> Integer -> Rational -> Pattern Bool
+_euclidish n j perc = stack $ map (\pos -> rotR pos $ fastGap (fromIntegral j) $ pure True) tweened
+  where
+    tweened :: [Time]
+    tweened = map (\(n', pos) -> (pos % j) + (((n' % n) - (pos % j)) * perc)) offs
+    offs = offs' 0 0 $ bjorklund (fromIntegral n, fromIntegral j)
+    offs' _ _ ([]) = []
+    offs' trues pos (False : l) = offs' trues (pos + 1) l
+    offs' trues pos (True : l) = (trues, pos) : (offs' (trues + 1) (pos + 1) l)
+
+euclidish :: Pattern Integer -> Pattern Integer -> Pattern Rational -> Pattern Bool
+euclidish a b c = innerJoin $ _euclidish <$> a <* b <* c
+
+eish :: Pattern Integer -> Pattern Integer -> Pattern Rational -> Pattern Bool
+eish = euclidish
 
 distrib :: [Pattern Int] -> Pattern a -> Pattern a
 distrib ps p = do
@@ -1012,7 +1040,7 @@ euclidInv :: Pattern Int -> Pattern Int -> Pattern a -> Pattern a
 euclidInv = patternify2 _euclidInv
 
 _euclidInv :: Int -> Int -> Pattern a -> Pattern a
-_euclidInv n k a = _euclid (-n) k a
+_euclidInv n k a = _euclid (- n) k a
 
 index :: (Real b) => b -> Pattern b -> Pattern c -> Pattern c
 index sz indexpat pat =
@@ -1154,15 +1182,15 @@ _rot i pat = splitQueries $ pat {query = \st -> f st (query pat (st {arc = whole
     f st es = constrainEvents (arc st) $ shiftValues $ sort $ defragParts es
     shiftValues es
       | i >= 0 =
-          zipWith
-            (\e s -> e {value = s})
-            es
-            (drop i $ cycle $ map value es)
+        zipWith
+          (\e s -> e {value = s})
+          es
+          (drop i $ cycle $ map value es)
       | otherwise =
-          zipWith
-            (\e s -> e {value = s})
-            es
-            (drop (length es - abs i) $ cycle $ map value es)
+        zipWith
+          (\e s -> e {value = s})
+          es
+          (drop (length es - abs i) $ cycle $ map value es)
     wholeCycle (Arc s _) = Arc (sam s) (nextSam s)
     constrainEvents :: Arc -> [Event a] -> [Event a]
     constrainEvents a es = mapMaybe (constrainEvent a) es
@@ -1325,10 +1353,10 @@ randStruct n = splitQueries $ Pattern f Nothing Nothing
                   i
                 )
             )
-            $ enumerate
-            $ value
-            $ head
-            $ queryArc (randArcs n) (Arc (sam s) (nextSam s))
+            $ enumerate $
+              value $
+                head $
+                  queryArc (randArcs n) (Arc (sam s) (nextSam s))
         (Arc s e) = arc st
 
 -- TODO - what does this do?
@@ -1565,7 +1593,7 @@ fit' cyc n from to p = squeezeJoin $ _fit n mapMasks to
   where
     mapMasks =
       [ stretch $ mask (const True <$> filterValues (== i) from') p'
-      | i <- [0 .. n - 1]
+        | i <- [0 .. n - 1]
       ]
     p' = density cyc p
     from' = density cyc from
@@ -1589,22 +1617,40 @@ fit' cyc n from to p = squeezeJoin $ _fit n mapMasks to
 --  > bd hh SN cp
 --  > bd hh sn CP
 chunk :: Pattern Int -> (Pattern b -> Pattern b) -> Pattern b -> Pattern b
-chunk npat f p = innerJoin $ (\n -> _chunk n f p) <$> npat
+chunk npat f p = keepSteps p $ innerJoin $ (\n -> _chunk n f p) <$> npat
 
 _chunk :: (Integral a) => a -> (Pattern b -> Pattern b) -> Pattern b -> Pattern b
 _chunk n f p
   | n >= 0 = cat [withinArc (Arc (i % fromIntegral n) ((i + 1) % fromIntegral n)) f p | i <- [0 .. fromIntegral n - 1]]
   | otherwise = do
-      i <- _slow (toRational (-n)) $ rev $ run (fromIntegral (-n))
-      withinArc (Arc (i % fromIntegral (-n)) ((i + 1) % fromIntegral (-n))) f p
+    i <- _slow (toRational (- n)) $ rev $ run (fromIntegral (- n))
+    withinArc (Arc (i % fromIntegral (- n)) ((i + 1) % fromIntegral (- n))) f p
 
 -- | DEPRECATED, use 'chunk' with negative numbers instead
 chunk' :: (Integral a1) => Pattern a1 -> (Pattern a2 -> Pattern a2) -> Pattern a2 -> Pattern a2
-chunk' npat f p = innerJoin $ (\n -> _chunk' n f p) <$> npat
+chunk' npat f p = keepSteps p $ innerJoin $ (\n -> _chunk' n f p) <$> npat
 
 -- | DEPRECATED, use '_chunk' with negative numbers instead
 _chunk' :: (Integral a) => a -> (Pattern b -> Pattern b) -> Pattern b -> Pattern b
-_chunk' n f p = _chunk (-n) f p
+_chunk' n f p = _chunk (- n) f p
+
+_fastchunk :: Int -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
+_fastchunk i f pat = while bpat f pat
+  where
+    bpat :: Pattern Bool
+    bpat = _iter' i $ listToPat $ True : (take (i -1) $ repeat False)
+
+fastchunk :: Pattern Int -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
+fastchunk pata patb patc = keepSteps patc $ innerJoin $ (\a -> _fastchunk a patb patc) <$> pata
+
+_chunkinto :: Int -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
+_chunkinto i f pat = into bpat f pat
+  where
+    bpat :: Pattern Bool
+    bpat = _iter' i $ listToPat $ True : (take (i -1) $ repeat False)
+
+chunkinto :: Pattern Int -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
+chunkinto pata patb patc = keepSteps patc $ innerJoin $ (\a -> _chunkinto a patb patc) <$> pata
 
 -- |
 -- @inside@ carries out an operation /inside/ a cycle.
@@ -2466,7 +2512,7 @@ rangex from to p = exp <$> _range (log from) (log to) p
 --  >    $ slow 2 "c(3,8) a(3,8,2) f(3,8) e(3,8,4)")
 --  >    # sound "superpiano"
 off :: Pattern Time -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
-off tp f p = innerJoin $ (\tv -> _off tv f p) <$> tp
+off tp f p = keepSteps p $ innerJoin $ (\tv -> _off tv f p) <$> tp
 
 _off :: Time -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
 _off t f p = superimpose (f . (t `rotR`)) p
@@ -3000,14 +3046,22 @@ rib :: Pattern Time -> Pattern Time -> Pattern a -> Pattern a
 rib = ribbon
 
 -- | Turns a pattern into a pattern of patterns, according to the structure of another given pattern.
-unjoin :: Pattern Bool -> Pattern b -> Pattern (Pattern b)
-unjoin pieces pat = withEvent snip pieces
+unjoin :: Pattern Bool -> (Pattern a -> Pattern a) -> Pattern a -> Pattern (Pattern a)
+unjoin pieces func pat = withEvent snip pieces
   where
     -- If true, set value to the part of pattern looped at event boundaries
-    snip e@Event {value = True} = e {value = _ribbon (wholeStart e) (wholeStop e - wholeStart e) pat}
+    snip e@Event {value = True} = e {value = func $ _ribbon (wholeStart e) (wholeStop e - wholeStart e) pat}
     -- Otherwise, set value to unchanged pattern
     snip e = e {value = pat}
 
+
+--  unjoin(pieces, func = id) {
+--    return pieces.withHap((hap) =>
+--      hap.withValue((v) => (v ? func(this.ribbon(hap.whole.begin, hap.whole.duration)) : this)),
+--    );
+--  }
+
+
 -- | Applies a function to subcycles of a pattern, as defined by the structure of another given pattern.
-into :: Pattern Bool -> (Pattern a -> Pattern b) -> Pattern a -> Pattern b
-into pieces func pat = innerJoin $ fmap func $ unjoin pieces pat
+into :: Pattern Bool -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
+into pieces func pat = keepSteps pat $ innerJoin $ unjoin pieces func pat
