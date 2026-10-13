@@ -28,3 +28,9 @@ out/
 !flake.lock
 # Ignore nix generated `result` symlink
 result
+
+# Node.js
+node_modules/
+
+# Backup files with " 2" suffix
+* 2.*

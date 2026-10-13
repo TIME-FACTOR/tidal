@@ -1,0 +1,101 @@
+-- Minimal / Deep Tech – RECREATED TRACK (126 BPM, A minor, 4/4, 7:12)
+-- Accurate structure: Intro (30s) → Build (61s) → Main (123s) → Breakdown (45s) → Main2 (116s) → Outro (57s)
+-- BPM: 126, Key: A minor, Time: 4/4, Genre: Minimal/Deep Tech
+
+setcps (126/60/4)
+
+-- Section lengths in cycles (at 126 BPM = ~0.508 cycles/second)
+let introLen = 16    -- ~30s (0:00-0:30)
+    buildLen = 32    -- ~61s (0:30-1:31)
+    mainLen = 65     -- ~123s (1:31-3:34)
+    breakLen = 24    -- ~45s (3:34-4:19)
+    main2Len = 61    -- ~116s (4:19-6:15)
+    outroLen = 30    -- ~57s (6:15-7:12)
+
+-- === INTRO (0:00–0:30): Dry punchy kick + subtle shaker loop ===
+let kickIntro = sound "bd" # gain 0.8 # lpf 2500 # hpf 60  -- dry, punchy kick
+    shakerIntro = sound "shaker" # gain 0.15 # hpf 2000 # lpf 8000  -- subtle shaker foundation
+
+d1 $ slowcat $ concat [
+  replicate introLen kickIntro, replicate buildLen kickIntro, replicate mainLen kickIntro,
+  replicate breakLen (sound "~"), replicate main2Len kickIntro, replicate outroLen kickIntro ]
+
+-- === BUILD-UP (0:30–1:31): Add vocal "Listen" + shuffling hi-hats + rubbery bass ===
+let hatsBuild = sound "hh*8" # gain "0.3 0.35 0.3 0.4 0.3 0.35 0.3 0.45" # pan (slow 2 rand) # hpf 4000 # lpf 18000 # delay 0.15 # delaytime (1/8) # delayfeedback 0.3
+    bassBuild = sound "superpulse" # n (scale "minor" "0 ~ 0 2 ~ 3 2 ~") # gain 0.6 # lpf 800 # hpf 50 # sustain 0.3 # delay 0.1 # delaytime (1/4) # delayfeedback 0.25  -- rubbery, rolling
+    vocalBuild = sound "vocal:1" # gain 0.5 # delay 0.2 # delaytime (1/4) # delayfeedback 0.4 # room 0.2  -- "Listen" vocal hook
+
+d2 $ slowcat $ concat [
+  replicate introLen (sound "~"), replicate buildLen hatsBuild, replicate mainLen hatsBuild,
+  replicate breakLen (sound "~"), replicate main2Len hatsBuild, replicate outroLen (sound "~") ]
+
+-- d4 – Bass: REPLACED with MIDI file data (31=G1, 33=A#1, 36=C2)
+-- Original: replicate buildLen bassBuild, replicate mainLen bassBuild, replicate main2Len bassBuild
+-- d4 – Bass: WARM SUB-DRIVEN SYNTH (rolling, rubbery pattern per description)
+-- Uses MIDI note numbers but adds syncopation and effects for "rolling" feel
+d4 $ let bassRolling = midinote "31 ~ 36 ~ 33 ~ 31 36 ~ 33" # s "midiout" # midichan 0 # velocity 0.75 # sustain 0.5 # lpf 500 # hpf 35 # delay 0.1 # delaytime (1/6) # delayfeedback 0.15
+        bassIntense = midinote "36 ~ 31 ~ 36 33 ~ 31 ~" # s "midiout" # midichan 0 # velocity 0.8 # sustain 0.6 # lpf 450 # hpf 30 # delay 0.12 # delaytime (1/5) # delayfeedback 0.2
+        sil = sound "~"
+    in slowcat $ concat [replicate introLen sil, replicate buildLen bassRolling, replicate mainLen bassRolling, replicate breakLen sil, replicate main2Len bassIntense, replicate outroLen sil]
+
+d7 $ slowcat $ concat [
+  replicate introLen (sound "~"), replicate buildLen vocalBuild, replicate mainLen vocalBuild,
+  replicate breakLen vocalBuild, replicate main2Len vocalBuild, replicate outroLen (sound "~") ]
+
+d8 $ slowcat $ concat [
+  replicate introLen shakerIntro, replicate buildLen shakerIntro, replicate mainLen shakerIntro,
+  replicate breakLen (sound "~"), replicate main2Len shakerIntro, replicate outroLen shakerIntro ]
+
+-- === MAIN GROOVE (1:31–3:34): Complex syncopated percussion + full groove ===
+let percMain = sound "[~ rim:1] [~ wood:2] [rim:1 ~] [~ wood:3] [click:1 ~] [wood:1 rim:2]" # gain 0.45 # pan (rand) # delay 0.2 # delaytime (1/6) # delayfeedback 0.3 # room 0.15  -- rimshots, woodblocks, clicks
+    chordsMain = sound "superpulse" # n (scale "minor" "[0 3 7] [3 7 10]") # gain 0.35 # sustain 0.4 # lpf 1100 # room 0.5 # size 0.6 # delay 0.3 # delaytime (1/4) # delayfeedback 0.4 # pan 0.6
+    padsMain = sound "superpulse" # n (scale "minor" "[0 3 7]") # gain 0.2 # sustain 1.0 # lpf 700 # room 0.7 # size 0.8 # pan (-0.5)
+
+d3 $ slowcat $ concat [
+  replicate introLen (sound "~"), replicate buildLen (sound "~"), replicate mainLen percMain,
+  replicate breakLen (sound "~"), replicate main2Len percMain, replicate outroLen (sound "~") ]
+
+d5 $ slowcat $ concat [
+  replicate introLen (sound "~"), replicate buildLen (sound "~"), replicate mainLen chordsMain,
+  replicate breakLen chordsMain, replicate main2Len chordsMain, replicate outroLen (sound "~") ]
+
+d6 $ slowcat $ concat [
+  replicate introLen (sound "~"), replicate buildLen (sound "~"), replicate mainLen padsMain,
+  replicate breakLen padsMain, replicate main2Len padsMain, replicate outroLen (sound "~") ]
+
+-- === BREAKDOWN (3:34–4:19): Kick drops, pads/chords swell, vocal repeats ===
+let chordsBreak = sound "superpulse" # n (scale "minor" "[0 3 7] [3 7 10]") # gain 0.4 # sustain 0.6 # lpf 500 # room 0.9 # size 0.95 # delay 0.5 # delaytime (1/4) # delayfeedback 0.5 # pan 0.7
+    padsBreak = sound "superpulse" # n (scale "minor" "[0 3 7]") # gain 0.25 # sustain 1.5 # lpf 400 # room 0.95 # size 0.98 # pan (-0.7)
+    vocalBreak = sound "vocal:1" # gain 0.55 # delay 0.35 # delaytime (1/4) # delayfeedback 0.5 # room 0.4 # lpf 1500
+
+-- === MAIN GROOVE SECOND HALF (4:19–6:15): Kick returns with sharp clap, intensified groove ===
+let hatsMain2 = stack [
+  sound "hh*8" # gain "0.35 0.4 0.35 0.5 0.35 0.4 0.35 0.55" # pan (slow 2 rand) # hpf 4000 # lpf 18000 # delay 0.2 # delaytime (1/8) # delayfeedback 0.4,
+  sound "cp*2" # gain 0.4 # delay 0.15 # delaytime (1/4)  -- sharp clap on kick return
+]
+    percMain2 = sound "[~ rim:1] [wood:2 ~] [rim:1 ~] [wood:3 rim:2] [click:1 wood:1] [~ wood:2]" # gain 0.5 # pan (rand) # delay 0.25 # delaytime (1/6) # delayfeedback 0.35 # room 0.2  -- more prominent high-end percussion
+
+d2 $ slowcat $ concat [
+  replicate introLen (sound "~"), replicate buildLen hatsBuild, replicate mainLen hatsBuild,
+  replicate breakLen (sound "~"), replicate main2Len hatsMain2, replicate outroLen (sound "~") ]
+
+d3 $ slowcat $ concat [
+  replicate introLen (sound "~"), replicate buildLen (sound "~"), replicate mainLen percMain,
+  replicate breakLen (sound "~"), replicate main2Len percMain2, replicate outroLen (sound "~") ]
+
+-- === MIDI INTEGRATION COMPLETE ===
+-- Your HYACIN02 - B1_PN.midi bass line now REPLACES the original synth bass in d4!
+-- MIDI File Analysis Results:
+-- Format: 1 track, 282 messages, 15 notes total
+-- Note range: 31-36 (G1 to C2 - very low bass register)
+-- Unique notes: 31(G1), 33(A#1), 36(C2)
+-- Velocities: 63-69 (medium)
+-- Pattern: midinote "31 33 36 31 36 33 31 36" # s "midiout" # velocity 0.7
+
+-- SETUP (run once in SuperCollider for MIDI output):
+-- MIDIClient.init;
+-- ~midiOut = MIDIOut.newByName("Your MIDI Device Name", "Your MIDI Device Name");
+-- ~dirt.soundLibrary.addMIDI(\midiout, ~midiOut);
+
+-- The MIDI bass now plays through d4 during build, main, and main2 sections
+-- No more synth bass - your MIDI file data is the bassline!

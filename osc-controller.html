@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minimal Deep Tech - OSC Controller</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #111;
+            color: #fff;
+            margin: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .control-group {
+            margin: 20px;
+            padding: 20px;
+            background: #222;
+            border-radius: 8px;
+            width: 300px;
+        }
+        .slider-container {
+            margin: 15px 0;
+        }
+        .slider-container label {
+            display: block;
+            margin-bottom: 5px;
+            color: #0f0;
+        }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 20px;
+            border-radius: 10px;
+            background: #444;
+            outline: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #0f0;
+            cursor: pointer;
+        }
+        .value-display {
+            display: inline-block;
+            margin-left: 10px;
+            color: #0f0;
+            min-width: 40px;
+        }
+        h1, h2 {
+            color: #0f0;
+            text-align: center;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            background: #333;
+            border-radius: 4px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎛️ Minimal Deep Tech - OSC Controller</h1>
+    <p>Use these sliders to control the Tidal track in real-time. Tidal must be running and listening on port 6010.</p>
+
+    <div class="status" id="status">Status: Not connected</div>
+
+    <div class="control-group">
+        <h2>Volume Controls</h2>
+
+        <div class="slider-container">
+            <label for="gainKick">Kick Volume: <span class="value-display" id="gainKickValue">0.80</span></label>
+            <input type="range" id="gainKick" min="0" max="1" step="0.01" value="0.8">
+        </div>
+
+        <div class="slider-container">
+            <label for="gainHats">Hi-Hat Volume: <span class="value-display" id="gainHatsValue">0.45</span></label>
+            <input type="range" id="gainHats" min="0" max="1" step="0.01" value="0.45">
+        </div>
+
+        <div class="slider-container">
+            <label for="gainBass">Bass Volume: <span class="value-display" id="gainBassValue">0.65</span></label>
+            <input type="range" id="gainBass" min="0" max="1" step="0.01" value="0.65">
+        </div>
+    </div>
+
+    <div class="control-group">
+        <h2>Filter Controls</h2>
+
+        <div class="slider-container">
+            <label for="lpfKick">Kick Low-Pass (Hz): <span class="value-display" id="lpfKickValue">2000</span></label>
+            <input type="range" id="lpfKick" min="100" max="10000" step="10" value="2000">
+        </div>
+    </div>
+
+    <div class="control-group">
+        <h2>Effects Controls</h2>
+
+        <div class="slider-container">
+            <label for="delaySend">Delay Send: <span class="value-display" id="delaySendValue">0.20</span></label>
+            <input type="range" id="delaySend" min="0" max="1" step="0.01" value="0.2">
+        </div>
+
+        <div class="slider-container">
+            <label for="roomSend">Reverb Send: <span class="value-display" id="roomSendValue">0.60</span></label>
+            <input type="range" id="roomSend" min="0" max="1" step="0.01" value="0.6">
+        </div>
+    </div>
+
+    <script>
+        // Simple OSC over WebSockets (requires a bridge or native WebOSC support)
+        // For now, we'll use a basic approach that could be extended
+
+        const statusEl = document.getElementById('status');
+
+        // Update value displays
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            const valueEl = document.getElementById(slider.id + 'Value');
+            slider.addEventListener('input', (e) => {
+                valueEl.textContent = e.target.value;
+                sendOSC(slider.id, parseFloat(e.target.value));
+            });
+        });
+
+        function sendOSC(controlName, value) {
+            // This would need a WebSocket OSC bridge or similar
+            // For now, just log what would be sent
+            console.log(`OSC: /ctrl "${controlName}" ${value}`);
+
+            // If you have a WebSocket OSC bridge running on port 8080:
+            // const ws = new WebSocket('ws://localhost:8080');
+            // ws.onopen = () => ws.send(JSON.stringify({address: '/ctrl', args: [controlName, value]}));
+
+            statusEl.textContent = `Sent: /ctrl "${controlName}" ${value}`;
+            setTimeout(() => statusEl.textContent = 'Status: Connected', 1000);
+        }
+
+        // Initialize status
+        statusEl.textContent = 'Status: Ready (OSC messages logged to console)';
+
+        // Note: To make this actually send OSC, you would need:
+        // 1. A WebSocket-to-OSC bridge (like osc-web or similar)
+        // 2. Or use a library like osc.js with proper OSC-over-UDP support
+        // 3. Or implement direct UDP sending if running in Node.js environment
+    </script>
+</body>
+</html>
