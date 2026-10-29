@@ -413,6 +413,7 @@ exprPos expr = case expr of
     MList (v : _) -> exprPos v
     _ -> (P.newPos "input" 1 1)
   where
+    posPos :: Positioned a -> P.SourcePos
     posPos v = P.newPos "input" v.row v.col
 
 -- 'unsnoc' comes from base-4.19. TODO: remove when this become the minimum supported by tidal
