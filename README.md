@@ -1,4 +1,3 @@
-
 # Tidal <a href="https://codeberg.org/uzu/tidal/LICENSE"><img alt="License" src="https://img.shields.io/github/license/tidalcycles/Tidal"></a>
 
 [![DOI](https://zenodo.org/badge/898407.svg)](https://doi.org/10.5281/zenodo.592191)
@@ -8,6 +7,8 @@
 For documentation, mailing list and more info see [here](https://tidalcycles.org/).  
 You can help speed up Tidal development by [contributing to the collective fund](https://opencollective.com/tidalcycles)!
 
-(c) Alex McLean and other [contributors](https://codeberg.org/uzu/tidal/activity/contributors), 2025
+(c) Alex McLean and other [contributors](https://codeberg.org/uzu/tidal/activity/contributors), 2026
 
 Licensed under the GNU Public License v3.0. Ports and other projects making use of Tidal source code as a reference for e.g. algorithms and/or types are derivative works and bound by the same license.
+
+Please see [POLICY.md](POLICY.md) for our code of conduct and humane AI/LLM policy.
