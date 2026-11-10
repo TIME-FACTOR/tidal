@@ -31,7 +31,10 @@ module Sound.Tidal.Pattern
   )
 where
 
-import Control.Applicative (liftA2)
+-- Backward compatibility for liftA2
+--- https://github.com/haskell/core-libraries-committee/blob/main/guides/export-lifta2-prelude.md
+
+import Control.Applicative (Applicative (..))
 import Control.DeepSeq (NFData)
 import Control.Monad ((>=>))
 import Data.Data (Data)
@@ -43,7 +46,7 @@ import Data.Typeable (Typeable)
 import Data.Word (Word8)
 import GHC.Generics (Generic)
 import Sound.Tidal.Time
-import Prelude hiding ((*>), (<*))
+import Prelude hiding (Applicative (..), (*>), (<*))
 
 ------------------------------------------------------------------------
 
@@ -56,13 +59,13 @@ data State = State
   }
 
 -- | A datatype representing events taking place over time
-data Pattern a = Pattern {query :: State -> [Event a], steps :: Maybe (Rational), pureValue :: Maybe a}
+data Pattern a = Pattern {query :: State -> [Event a], steps :: Maybe Rational, pureValue :: Maybe a}
   deriving (Generic, Functor)
 
 instance (NFData a) => NFData (Pattern a)
 
-pattern :: (State -> [Event a]) -> Pattern a
-pattern f = Pattern f Nothing Nothing
+pattern_ :: (State -> [Event a]) -> Pattern a
+pattern_ f = Pattern f Nothing Nothing
 
 setSteps :: Maybe Rational -> Pattern a -> Pattern a
 setSteps r p = p {steps = r}
@@ -72,6 +75,9 @@ setStepsFrom a b = b {steps = steps a}
 
 withSteps :: (Rational -> Rational) -> Pattern a -> Pattern a
 withSteps f p = p {steps = fmap f $ steps p}
+
+hasSteps :: Pattern a -> Bool
+hasSteps = isJust . steps
 
 pace :: Rational -> Pattern a -> Pattern a
 pace target p@(Pattern _ (Just t) _) = setSteps (Just target) $ _fast (target / t) p
@@ -145,7 +151,7 @@ instance Applicative Pattern where
 infixl 4 <*, *>, <<*
 
 applyPatToPat :: (Maybe Arc -> Maybe Arc -> Maybe (Maybe Arc)) -> Pattern (a -> b) -> Pattern a -> Pattern b
-applyPatToPat combineWholes pf px = pattern q
+applyPatToPat combineWholes pf px = pattern_ q
   where
     q st = catMaybes $ concatMap match $ query pf st
       where
@@ -160,7 +166,7 @@ applyPatToPat combineWholes pf px = pattern q
             (query px $ st {arc = wholeOrPart ef})
 
 applyPatToPatBoth :: Pattern (a -> b) -> Pattern a -> Pattern b
-applyPatToPatBoth pf px = pattern q
+applyPatToPatBoth pf px = pattern_ q
   where
     q st = catMaybes $ (concatMap match $ query pf st) ++ (concatMap matchX $ query (filterAnalog px) st)
       where
@@ -177,7 +183,7 @@ applyPatToPatBoth pf px = pattern q
           return (Event (combineContexts [context ef, context ex]) whole' part' (value ef $ value ex))
 
 applyPatToPatLeft :: Pattern (a -> b) -> Pattern a -> Pattern b
-applyPatToPatLeft pf px = pattern q
+applyPatToPatLeft pf px = pattern_ q
   where
     q st = catMaybes $ concatMap match $ query pf st
       where
@@ -188,7 +194,7 @@ applyPatToPatLeft pf px = pattern q
           return (Event (combineContexts [context ef, context ex]) whole' part' (value ef $ value ex))
 
 applyPatToPatRight :: Pattern (a -> b) -> Pattern a -> Pattern b
-applyPatToPatRight pf px = pattern q
+applyPatToPatRight pf px = pattern_ q
   where
     q st = catMaybes $ concatMap match $ query px st
       where
@@ -292,7 +298,7 @@ squeezeJoin pp = pp {query = q, pureValue = Nothing}
         return (Event (combineContexts [iContext, oContext]) w' p' v)
 
 _trigJoin :: Bool -> Pattern (Pattern a) -> Pattern a
-_trigJoin cycleZero pat_of_pats = pattern q
+_trigJoin cycleZero pat_of_pats = pattern_ q
   where
     q st =
       concatMap
@@ -384,7 +390,7 @@ instance Monoid (Pattern a) where
 
 instance Semigroup (Pattern a) where
   (<>) :: Pattern a -> Pattern a -> Pattern a
-  (<>) !p !p' = pattern $ \st -> query p st ++ query p' st
+  (<>) !p !p' = pattern_ $ \st -> query p st ++ query p' st
 
 instance (Num a, Ord a) => Real (Pattern a) where
   toRational :: (Num a, Ord a) => Pattern a -> Rational
@@ -613,6 +619,9 @@ withQueryControls f pat = pat {query = query pat . (\(State a m) -> State a (f m
 withEvent :: (Event a -> Event b) -> Pattern a -> Pattern b
 withEvent f p = p {query = map f . query p, pureValue = Nothing}
 
+withEventArc :: (Arc -> Arc) -> Pattern a -> Pattern a
+withEventArc f pat = withEvent (\(Event c w p v) -> Event c (f <$> w) (f p) v) pat
+
 -- | @withEvent f p@ returns a new @Pattern@ with each value mapped over
 -- function @f@.
 withValue :: (a -> b) -> Pattern a -> Pattern b
@@ -837,11 +846,6 @@ rev p =
     mirrorArc :: Time -> Arc -> Arc
     mirrorArc mid' (Arc s e) = Arc (mid' - (e - mid')) (mid' + (mid' - s))
 
-revv :: Pattern a -> Pattern a
-revv = withResultArc revarc . withQueryArc revarc
-  where
-    revarc (Arc s e) = Arc (0 - e) (0 - s)
-
 -- | Mark values in the first pattern which match with at least one
 -- value in the second pattern.
 matchManyToOne :: (b -> a -> Bool) -> Pattern a -> Pattern b -> Pattern (Bool, b)
@@ -855,6 +859,12 @@ matchManyToOne f pa pb = pa {query = q, pureValue = Nothing}
             as' = as $ start $ wholeOrPart ex
         as s = query pa $ fQuery s
         fQuery s = st {arc = Arc s s}
+
+-- Like `rev`, but reverses the whole pattern, rather than every cycle in the pattern.
+revv :: Pattern a -> Pattern a
+revv pat = withEventArc negateArc $ withQueryArc negateArc pat
+  where
+    negateArc (Arc s e) = Arc (negate e) (negate s)
 
 -- ** Event filters
 
@@ -883,7 +893,7 @@ filterAnalog :: Pattern a -> Pattern a
 filterAnalog = filterEvents isAnalog
 
 playFor :: Time -> Time -> Pattern a -> Pattern a
-playFor s e pat = pattern $ \st -> maybe [] (\a -> query pat (st {arc = a})) $ subArc (Arc s e) (arc st)
+playFor s e pat = pattern_ $ \st -> maybe [] (\a -> query pat (st {arc = a})) $ subArc (Arc s e) (arc st)
 
 -- | Splits a pattern into a list containing the given 'n' number of
 -- patterns. Each one plays every 'n'th cycle, successfully offset by

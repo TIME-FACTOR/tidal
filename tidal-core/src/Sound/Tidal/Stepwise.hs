@@ -18,15 +18,15 @@
 
 module Sound.Tidal.Stepwise where
 
-import Data.List (sort, sortOn, transpose)
-import Data.Maybe (catMaybes, fromJust, fromMaybe, isJust, mapMaybe)
-import Sound.Tidal.Core (stack, timecat, zoom, zoompat)
+import Data.List (sort, transpose)
+import Data.Maybe (fromMaybe, isJust, mapMaybe)
+import Sound.Tidal.Core (slowcat, stack, timecat, zoom)
 import Sound.Tidal.Pattern
 import Sound.Tidal.UI (while)
 import Sound.Tidal.Utils (applyWhen, enumerate, nubOrd, pairs)
 
--- _lcmsteps :: [Pattern a] -> Maybe Time
--- _lcmsteps pats = foldl1 lcmr <$> (sequence $ map steps pats)
+-- _lcmsteps :: [Pattern a] -> Pattern Time
+-- _lcmsteps pats = foldl1 (liftA2 lcmr) $ mapMaybe steps pats
 
 s_patternify :: (a -> Pattern b -> Pattern c) -> (Pattern a -> Pattern b -> Pattern c)
 s_patternify f (Pattern _ _ (Just a)) b = f a b
@@ -38,6 +38,7 @@ s_patternify2 f a b p = stepJoin $ (\x y -> f x y p) <$> a <*> b
 stepJoin :: Pattern (Pattern a) -> Pattern a
 stepJoin pp = Pattern q first_t Nothing
   where
+    -- TODO - use context?
     q st@(State a c) = query (timecat $ retime $ slices $ query (rotL (sam $ start a) pp) (st {arc = Arc 0 1})) st
     first_t :: Maybe Rational
     first_t = steps $ timecat $ retime $ slices $ queryArc pp (Arc 0 1)
@@ -90,9 +91,9 @@ _stepdrop :: Time -> Pattern a -> Pattern a
 _stepdrop _ pat@(Pattern _ Nothing _) = pat
 _stepdrop n pat@(Pattern _ (Just t) _) = steptake (pure $ f t) pat
   where
-    f t
-      | n >= 0 = t - n
-      | otherwise = negate (t + n)
+    f t'
+      | n >= 0 = t' - n
+      | otherwise = negate (t' + n)
 
 stepdrop :: Pattern Time -> Pattern a -> Pattern a
 stepdrop = s_patternify _stepdrop
@@ -115,6 +116,15 @@ _extend factor pat = _expand factor $ _fast factor pat
 extend :: Pattern Rational -> Pattern a -> Pattern a
 extend = s_patternify _extend
 
+-- polymeter :: [Pattern a] -> Pattern a
+-- polymeter pats = stack $ map (pace targetSteps) pats'
+--   where
+--     targetSteps = _lcmsteps pats'
+--     pats' = filter hasSteps pats
+
+-- pm :: [Pattern a] -> Pattern a
+-- pm = polymeter
+
 -- | Successively plays a pattern from each group in turn
 stepalt :: [[Pattern a]] -> Pattern a
 stepalt groups = stepcat $ concat $ take (fromIntegral $ c * length groups) $ transpose $ map cycle groups
@@ -125,6 +135,12 @@ stepwhile :: Pattern Bool -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
 stepwhile patb f pat@(Pattern _ (Just t) _) = while (pace t patb) f pat
 -- TODO raise exception?
 stepwhile _ _ pat = pat
+
+stepzip :: [Pattern a] -> Pattern a
+stepzip pats = setSteps (Just s) $ _fast s zipped
+  where
+    zipped = slowcat $ map (pace 1) $ filter hasSteps pats
+    s = foldl1 lcmr $ mapMaybe steps pats
 
 _s_nth :: Bool -> Bool -> Int -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
 _s_nth lastone stepwise n f pat

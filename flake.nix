@@ -42,8 +42,8 @@
     utils.eachSupportedSystem =
       inputs.utils.lib.eachSystem utils.supportedSystems;
 
-    mkPackages = pkgs: let
-      project = pkgs.haskellPackages.extend (pkgs.haskell.lib.compose.packageSourceOverrides {
+    mkPackages = pkgs: haskellPackages: let
+      project = haskellPackages.extend (pkgs.haskell.lib.compose.packageSourceOverrides {
         hosc = inputs.hosc; # Manually added as `hosc` 0.21 is not yet in nixpkgs.
         tidal = ./.;
         tidal-core = ./tidal-core;
@@ -52,17 +52,18 @@
         tidal-parse = ./tidal-parse;
       });
       tidal-boot = ./BootTidal.hs;
-      tidal-ghc = pkgs.haskellPackages.ghcWithPackages (hpkgs: [project.tidal]);
+      tidal-ghc = haskellPackages.ghcWithPackages (hpkgs: [project.tidal]);
     in {
       tidal = project.tidal;
       tidal-core = project.tidal-core;
       tidal-link = project.tidal-link;
       tidal-listener = project.tidal-listener;
       tidal-parse = project.tidal-parse;
+      tidal-ghc = tidal-ghc;
       tidal-ghci = pkgs.writeShellScriptBin "tidal-ghci" ''
         ${tidal-ghc}/bin/ghci -ghci-script ${tidal-boot}
       '';
-      default = inputs.self.packages.${pkgs.system}.tidal-ghci;
+      default = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.tidal-ghci;
     };
 
     mkDevShells = pkgs: tidalpkgs: {
@@ -73,13 +74,16 @@
           pkgs.stack
         ];
       };
-      default = inputs.self.devShells.${pkgs.system}.tidal;
+      default = inputs.self.devShells.${pkgs.stdenv.hostPlatform.system}.tidal;
     };
 
     mkOutput = system: let
       pkgs = inputs.nixpkgs.legacyPackages.${system};
+      tidalPackagesWithHaskell = mkPackages pkgs;
     in {
-      packages = mkPackages pkgs;
+      packages = tidalPackagesWithHaskell pkgs.haskellPackages // {
+        inherit tidalPackagesWithHaskell;
+      };
       devShells = mkDevShells pkgs inputs.self.packages.${system};
       formatter = pkgs.alejandra;
     };
