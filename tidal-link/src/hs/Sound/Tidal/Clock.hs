@@ -58,6 +58,7 @@ type TickAction =
 -- | possible actions for interacting with the clock
 data ClockAction
   = SetCycle Time
+  | ForceSetCycle Time
   | SetTempo Time
   | SetNudge Double
 
@@ -201,27 +202,32 @@ clockProcess = do
   tick
 
 processAction :: ClockAction -> Clock (Bool)
-processAction (SetNudge n) = modify (\st -> st {nudged = n}) >> return True
-processAction (SetTempo bpm) = do
-  (ClockMemory _ (ClockRef _ abletonLink) _) <- ask
-  sessionState <- liftIO $ Link.createAndCaptureAppSessionState abletonLink
-  now <- liftIO $ Link.clock abletonLink
-  liftIO $ Link.setTempo sessionState (fromRational bpm) now
-  liftIO $ Link.commitAndDestroyAppSessionState abletonLink sessionState
-  return True
-processAction (SetCycle cyc) = do
-  (ClockMemory config (ClockRef _ abletonLink) _) <- ask
-  sessionState <- liftIO $ Link.createAndCaptureAppSessionState abletonLink
+processAction action = case action of
+  SetNudge n -> modify (\st -> st {nudged = n}) >> return True
+  SetTempo bpm -> do
+    (ClockMemory _ (ClockRef _ abletonLink) _) <- ask
+    sessionState <- liftIO $ Link.createAndCaptureAppSessionState abletonLink
+    now <- liftIO $ Link.clock abletonLink
+    liftIO $ Link.setTempo sessionState (fromRational bpm) now
+    liftIO $ Link.commitAndDestroyAppSessionState abletonLink sessionState
+    return True
+  SetCycle cyc -> setCycle cyc False
+  ForceSetCycle cyc -> setCycle cyc True
+  where
+    setCycle :: Time -> Bool -> Clock Bool
+    setCycle cyc force = do
+      (ClockMemory config (ClockRef _ abletonLink) _) <- ask
+      sessionState <- liftIO $ Link.createAndCaptureAppSessionState abletonLink
 
-  now <- liftIO $ Link.clock abletonLink
-  let processAhead = round $ (clockProcessAhead config) * 1000000
-      startAt = now + processAhead
-      beat = (fromRational cyc) * (clockBeatsPerCycle config)
-  liftIO $ Link.requestBeatAtTime sessionState beat startAt (clockQuantum config)
-  liftIO $ Link.commitAndDestroyAppSessionState abletonLink sessionState
+      now <- liftIO $ Link.clock abletonLink
+      let processAhead = round $ (clockProcessAhead config) * 1000000
+          startAt = now + processAhead
+          beat = (fromRational cyc) * (clockBeatsPerCycle config)
+      liftIO $ (if force then Link.forceBeatAtTime else Link.requestBeatAtTime) sessionState beat startAt (clockQuantum config)
+      liftIO $ Link.commitAndDestroyAppSessionState abletonLink sessionState
 
-  modify (\st -> st {ticks = 0, start = now, nowArc = (cyc, cyc)})
-  return $ cyc /= 0
+      modify (\st -> st {ticks = 0, start = now, nowArc = (cyc, cyc)})
+      return $ cyc /= 0
 
 ---------------------------------------------------------------
 ----------- functions representing link operations ------------
@@ -318,6 +324,9 @@ resetClock clock = setClock clock 0
 
 setClock :: ClockRef -> Time -> IO ()
 setClock (ClockRef clock _) t = atomically $ writeTQueue clock $ SetCycle t
+
+forceSetClock :: ClockRef -> Time -> IO ()
+forceSetClock (ClockRef clock _) t = atomically $ writeTQueue clock $ ForceSetCycle t
 
 setBPM :: ClockRef -> Time -> IO ()
 setBPM (ClockRef clock _) t = atomically $ writeTQueue clock $ SetTempo t

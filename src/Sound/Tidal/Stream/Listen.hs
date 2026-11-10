@@ -97,6 +97,8 @@ ctrlResponder _ (stream@(Stream {sListen = Just sock})) = loop
       streamSetCycle stream $ toTime k
     act (O.Message "/resetCycles" _) =
       streamResetCycles stream
+    act (O.Message "/forceResetCycles" _) =
+      streamForceResetCycles stream
     -- Nudge all command
     act (O.Message "/nudgeAll" [O.Double k]) =
       streamNudgeAll stream k

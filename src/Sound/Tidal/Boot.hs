@@ -235,6 +235,10 @@ all = streamAll tidal
 resetCycles :: (Tidally) => IO ()
 resetCycles = streamResetCycles tidal
 
+-- | See 'Sound.Tidal.Stream.forceResetCycles'.
+forceResetCycles :: (Tidally) => IO ()
+forceResetCycles = streamForceResetCycles tidal
+
 -- | See 'Sound.Tidal.Stream.streamSetCycle'.
 setCycle :: (Tidally) => Time -> IO ()
 setCycle = streamSetCycle tidal

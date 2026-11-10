@@ -114,6 +114,7 @@ bootTidal' =
     "nudgeAll = streamNudgeAll tidal",
     "all = streamAll tidal",
     "resetCycles = streamResetCycles tidal",
+    "forceResetCycles = streamForceResetCycles tidal",
     "setcps = asap . cps",
     "getcps = streamGetcps tidal",
     "getnow = streamGetnow tidal",
