@@ -1642,6 +1642,7 @@ _fastchunk i f pat = while bpat f pat
 
 fastchunk :: Pattern Int -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
 fastchunk pata patb patc = keepSteps patc $ innerJoin $ (\a -> _fastchunk a patb patc) <$> pata
+
 chunkinto :: Pattern Int -> (Pattern b -> Pattern b) -> Pattern b -> Pattern b
 chunkinto npat f p = keepSteps p $ innerJoin $ (\n -> _chunkinto n f p) <$> npat
 
