@@ -79,16 +79,17 @@
 
     mkOutput = system: let
       pkgs = inputs.nixpkgs.legacyPackages.${system};
-      tidalPackagesWithHaskell = mkPackages pkgs;
     in {
-      packages = tidalPackagesWithHaskell pkgs.haskellPackages // {
-        inherit tidalPackagesWithHaskell;
-      };
+      packages = mkPackages pkgs pkgs.haskellPackages;
       devShells = mkDevShells pkgs inputs.self.packages.${system};
       formatter = pkgs.alejandra;
     };
 
     systemOutputs = utils.eachSupportedSystem mkOutput;
   in
-    systemOutputs;
+    {
+      lib = {
+        inherit mkPackages;
+      };
+    } // systemOutputs;
 }
