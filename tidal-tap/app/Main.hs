@@ -3,19 +3,25 @@
 {-# HLINT ignore "Use newtype instead of data" #-}
 module Main where
 
+-- import Control.Monad (when, forever)
 -- import qualified Sound.Osc.Time.Timeout as O
 
-import Control.Concurrent (forkIO, killThread, newEmptyMVar, threadDelay)
+import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Concurrent.MVar
   ( MVar,
-    modifyMVar_,
-    newMVar,
+    newEmptyMVar,
     putMVar,
-    readMVar,
     takeMVar,
   )
-import Control.Monad (forever, when)
 import Control.Monad.State
+  ( MonadIO (liftIO),
+    StateT,
+    evalStateT,
+    forever,
+    gets,
+    modify,
+    when,
+  )
 import Data.Time (NominalDiffTime)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Graphics.Vty
@@ -25,7 +31,6 @@ import Options.Applicative
 import qualified Sound.Osc.Fd as O
 import qualified Sound.Osc.Transport.Fd.Udp as O
 import qualified Sound.PortMidi as PM
-import Sound.PortMidi.Simple (ChannelMessage (controllerNumber))
 import qualified Sound.PortMidi.Simple as PM
 import System.IO (hPrint, hPutStrLn, stderr)
 
@@ -130,11 +135,11 @@ sendCps c = do
 sendTempo :: [NominalDiffTime] -> TapM ()
 sendTempo ts
   | length ts >= 2 = do
-      -- liftIO $ hPutStrLn stderr $ show ts
-      let xs = diffs ts
-          avg = sum xs / fromIntegral (length xs)
-          tempo = realToFrac $ 1 / (avg * 4)
-      sendCps tempo
+    -- liftIO $ hPutStrLn stderr $ show ts
+    let xs = diffs ts
+        avg = sum xs / fromIntegral (length xs)
+        tempo = realToFrac $ 1 / (avg * 4)
+    sendCps tempo
   | otherwise = return ()
   where
     ds = diffs ts
@@ -153,38 +158,60 @@ sendNudge new = do
   send $ O.Message "/nudgeAll" [O.Double new]
   modify $ \s -> s {nudgeAll = new}
 
-mute :: TapM ()
-mute = do
+mute :: Maybe Int -> TapM ()
+mute Nothing = do
   send $ O.Message "/muteAll" []
+  send $ O.Message "/unmute" [O.Int32 $ fromIntegral 11]
+  modify $ \s -> s {muted = True}
+mute (Just i) = do
+  send $ O.Message "/mute" [O.Int32 $ fromIntegral i]
   modify $ \s -> s {muted = True}
 
-unmute :: TapM ()
-unmute = do
+unmute :: Maybe Int -> TapM ()
+unmute Nothing = do
   send $ O.Message "/unmuteAll" []
   modify $ \s -> s {muted = False}
+unmute (Just i) = do
+  send $ O.Message "/unmute" [O.Int32 $ fromIntegral i]
+  modify $ \s -> s {muted = False}
 
-muteToggle :: TapM ()
-muteToggle = do
+solo :: Maybe Int -> TapM ()
+solo i = do
+  mute Nothing
+  unmute i
+
+muteToggle :: Maybe Int -> TapM ()
+muteToggle i = do
   mutedv <- gets muted
-  if mutedv then unmute else mute
+  if mutedv then unmute i else mute i
 
 send :: O.Message -> TapM ()
 send message = do
   senderv <- gets sender
   liftIO $ senderv message
 
-reset :: TapM ()
-reset =
+reset :: Maybe Int -> TapM ()
+reset i =
   do
-    unmute
+    solo i
     sendNudge 0
     send $ O.Message "/resetCycles" []
     return ()
 
 event :: NominalDiffTime -> Event -> TapM ()
-event _ (EvKey (KChar 'r') []) = reset
+event _ (EvKey (KChar 'r') []) = reset Nothing
+event _ (EvKey (KChar '1') []) = reset $ Just 1
+event _ (EvKey (KChar '2') []) = reset $ Just 2
+event _ (EvKey (KChar '3') []) = reset $ Just 3
+event _ (EvKey (KChar '4') []) = reset $ Just 4
+event _ (EvKey (KChar '5') []) = reset $ Just 5
+event _ (EvKey (KChar '6') []) = reset $ Just 6
+event _ (EvKey (KChar '7') []) = reset $ Just 7
+event _ (EvKey (KChar '8') []) = reset $ Just 8
+event _ (EvKey (KChar '9') []) = reset $ Just 9
+event _ (EvKey (KChar '0') []) = reset $ Just 10
 event _ (EvKey (KChar 'm') []) = do
-  muteToggle
+  muteToggle Nothing
 event t (EvKey (KChar 't') []) = do
   modify $ \s -> s {taps = t : taps s}
   updateTempo
@@ -214,8 +241,20 @@ doMessage t timestamp (PM.Channel _ (PM.NoteOn 34 _)) =
     prepend a (b : xs)
       | a == b = b : xs
       | otherwise = a : b : xs
-doMessage t timestamp (PM.Channel _ (PM.NoteOn 20 _)) = reset
-doMessage t timestamp (PM.Channel _ (PM.NoteOn 23 _)) = muteToggle
+doMessage t timestamp (PM.Channel _ (PM.NoteOn 20 _)) = reset Nothing
+doMessage t timestamp (PM.Channel _ (PM.NoteOn 29 _)) = reset $ Just 1
+doMessage t timestamp (PM.Channel _ (PM.NoteOn 15 _)) = reset $ Just 2
+doMessage t timestamp (PM.Channel _ (PM.NoteOn 17 _)) = reset $ Just 3
+doMessage t timestamp (PM.Channel _ (PM.NoteOn 27 _)) = reset $ Just 4
+doMessage t timestamp (PM.Channel _ (PM.NoteOn 36 _)) = reset $ Just 5
+doMessage t timestamp (PM.Channel _ (PM.NoteOn 21 _)) = reset $ Just 6
+doMessage t timestamp (PM.Channel _ (PM.NoteOn 18 _)) = reset $ Just 7
+doMessage t timestamp (PM.Channel _ (PM.NoteOn 32 _)) = reset $ Just 8
+doMessage t timestamp (PM.Channel _ (PM.NoteOn 37 _)) = reset $ Just 9
+doMessage t timestamp (PM.Channel _ (PM.NoteOn 22 _)) = reset $ Just 10
+doMessage t timestamp (PM.Channel _ (PM.NoteOn 19 _)) = reset $ Just 11
+doMessage t timestamp (PM.Channel _ (PM.NoteOn 33 _)) = reset $ Just 12
+doMessage t timestamp (PM.Channel _ (PM.NoteOn 23 _)) = muteToggle Nothing
 doMessage t timestamp (PM.Channel _ (PM.ControlChange {PM.controllerNumber = 36, PM.controllerValue = val})) =
   do
     x <- gets cps
@@ -251,8 +290,7 @@ taploop = do
             (defAttr `withBackColor` blue)
             ( if mutedv
                 then "[-muted-]"
-                else
-                  "[unmuted]"
+                else "[unmuted]"
             )
           <-> string (defAttr `withForeColor` green) "r = restart (+unmute), t = tap m = toggle mute"
           <-> string (defAttr `withForeColor` blue) showcpsv
@@ -300,7 +338,7 @@ runTap :: Parameters -> IO ()
 runTap (Parameters {showdevices = True}) = printDevices
 runTap ps =
   do
-    PM.initialize
+    _ <- PM.initialize
     addr <- resolve "127.0.0.1" 6010
     u <-
       O.udp_socket

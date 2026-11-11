@@ -973,6 +973,34 @@ _euclidOffBool :: Int -> Int -> Int -> Pattern Bool -> Pattern Bool
 _euclidOffBool _ 0 _ _ = silence
 _euclidOffBool n k s p = setSteps (Just $ toRational k) $ rotL (fromIntegral s % fromIntegral k) ((\a b -> if b then a else not a) <$> _euclidBool n k <*> p)
 
+_ish :: [Bool] -> Rational -> Pattern Bool
+_ish sq perc = stack $ map (\pos -> rotR pos $ fastGap (fromIntegral j) $ pure True) tweened
+  where
+    tweened :: [Time]
+    tweened = map (\(n', pos) -> (pos % j) + (((n' % n) - (pos % j)) * perc)) offs
+    n = fromIntegral $ length $ filter id sq
+    j = fromIntegral $ length sq
+    offs = offs' 0 0 $ sq
+    offs' _ _ ([]) = []
+    offs' trues pos (False : l) = offs' trues (pos + 1) l
+    offs' trues pos (True : l) = (trues, pos) : (offs' (trues + 1) (pos + 1) l)
+
+_euclidish :: Integer -> Integer -> Rational -> Pattern Bool
+_euclidish n j perc = stack $ map (\pos -> rotR pos $ fastGap (fromIntegral j) $ pure True) tweened
+  where
+    tweened :: [Time]
+    tweened = map (\(n', pos) -> (pos % j) + (((n' % n) - (pos % j)) * perc)) offs
+    offs = offs' 0 0 $ bjorklund (fromIntegral n, fromIntegral j)
+    offs' _ _ ([]) = []
+    offs' trues pos (False : l) = offs' trues (pos + 1) l
+    offs' trues pos (True : l) = (trues, pos) : (offs' (trues + 1) (pos + 1) l)
+
+euclidish :: Pattern Integer -> Pattern Integer -> Pattern Rational -> Pattern Bool
+euclidish a b c = innerJoin $ _euclidish <$> a <* b <* c
+
+eish :: Pattern Integer -> Pattern Integer -> Pattern Rational -> Pattern Bool
+eish = euclidish
+
 distrib :: [Pattern Int] -> Pattern a -> Pattern a
 distrib ps p = do
   p' <- sequence ps
@@ -1589,7 +1617,7 @@ fit' cyc n from to p = squeezeJoin $ _fit n mapMasks to
 --  > bd hh SN cp
 --  > bd hh sn CP
 chunk :: Pattern Int -> (Pattern b -> Pattern b) -> Pattern b -> Pattern b
-chunk npat f p = innerJoin $ (\n -> _chunk n f p) <$> npat
+chunk npat f p = keepSteps p $ innerJoin $ (\n -> _chunk n f p) <$> npat
 
 _chunk :: (Integral a) => a -> (Pattern b -> Pattern b) -> Pattern b -> Pattern b
 _chunk n f p
@@ -1600,14 +1628,23 @@ _chunk n f p
 
 -- | DEPRECATED, use 'chunk' with negative numbers instead
 chunk' :: (Integral a1) => Pattern a1 -> (Pattern a2 -> Pattern a2) -> Pattern a2 -> Pattern a2
-chunk' npat f p = innerJoin $ (\n -> _chunk' n f p) <$> npat
+chunk' npat f p = keepSteps p $ innerJoin $ (\n -> _chunk' n f p) <$> npat
 
 -- | DEPRECATED, use '_chunk' with negative numbers instead
 _chunk' :: (Integral a) => a -> (Pattern b -> Pattern b) -> Pattern b -> Pattern b
 _chunk' n f p = _chunk (-n) f p
 
+_fastchunk :: Int -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
+_fastchunk i f pat = while bpat f pat
+  where
+    bpat :: Pattern Bool
+    bpat = _iter' i $ listToPat $ True : (take (i - 1) $ repeat False)
+
+fastchunk :: Pattern Int -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
+fastchunk pata patb patc = keepSteps patc $ innerJoin $ (\a -> _fastchunk a patb patc) <$> pata
+
 chunkinto :: Pattern Int -> (Pattern b -> Pattern b) -> Pattern b -> Pattern b
-chunkinto npat f p = innerJoin $ (\n -> _chunkinto n f p) <$> npat
+chunkinto npat f p = keepSteps p $ innerJoin $ (\n -> _chunkinto n f p) <$> npat
 
 chunkInto :: Pattern Int -> (Pattern b -> Pattern b) -> Pattern b -> Pattern b
 chunkInto = chunkinto
@@ -2480,7 +2517,7 @@ rangex from to p = exp <$> _range (log from) (log to) p
 --  >    $ slow 2 "c(3,8) a(3,8,2) f(3,8) e(3,8,4)")
 --  >    # sound "superpiano"
 off :: Pattern Time -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
-off tp f p = innerJoin $ (\tv -> _off tv f p) <$> tp
+off tp f p = keepSteps p $ innerJoin $ (\tv -> _off tv f p) <$> tp
 
 _off :: Time -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
 _off t f p = superimpose (f . (t `rotR`)) p
@@ -3027,4 +3064,4 @@ unjoin pieces pat = unjoinfunc pieces id pat
 
 -- | Applies a function to subcycles of a pattern, as defined by the structure of another given pattern.
 into :: Pattern Bool -> (Pattern b -> Pattern b) -> Pattern b -> Pattern b
-into pieces func pat = innerJoin $ unjoinfunc pieces func pat
+into pieces func pat = keepSteps pat $ innerJoin $ unjoinfunc pieces func pat
