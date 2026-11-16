@@ -24,6 +24,12 @@ streamResetCycles s = streamSetCycle s 0
 streamSetCycle :: Stream -> Time -> IO ()
 streamSetCycle s = Clock.setClock (sClockRef s)
 
+streamForceResetCycles :: Stream -> IO ()
+streamForceResetCycles s = streamForceSetCycle s 0
+
+streamForceSetCycle :: Stream -> Time -> IO ()
+streamForceSetCycle s = Clock.forceSetClock (sClockRef s)
+
 streamSetCPS :: Stream -> Time -> IO ()
 streamSetCPS s = Clock.setCPS (toClockConfig $ sConfig s) (sClockRef s)
 

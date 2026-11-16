@@ -140,7 +140,7 @@ timeToRands' seed n
 --
 -- > jux (# ((1024 <~) $ gain rand)) $ sound "sn sn ~ sn" # gain rand
 rand :: (Fractional a) => Pattern a
-rand = pattern (\(State a@(Arc s _) _) -> [Event (Context []) Nothing a (realToFrac (timeToRand s :: Double))])
+rand = pattern_ (\(State a@(Arc s _) _) -> [Event (Context []) Nothing a (realToFrac (timeToRand s :: Double))])
 
 -- | Boolean rand - a continuous stream of true\/false values, with a 50\/50 chance.
 brand :: Pattern Bool
@@ -973,6 +973,34 @@ _euclidOffBool :: Int -> Int -> Int -> Pattern Bool -> Pattern Bool
 _euclidOffBool _ 0 _ _ = silence
 _euclidOffBool n k s p = setSteps (Just $ toRational k) $ rotL (fromIntegral s % fromIntegral k) ((\a b -> if b then a else not a) <$> _euclidBool n k <*> p)
 
+_ish :: [Bool] -> Rational -> Pattern Bool
+_ish sq perc = stack $ map (\pos -> rotR pos $ fastGap (fromIntegral j) $ pure True) tweened
+  where
+    tweened :: [Time]
+    tweened = map (\(n', pos) -> (pos % j) + (((n' % n) - (pos % j)) * perc)) offs
+    n = fromIntegral $ length $ filter id sq
+    j = fromIntegral $ length sq
+    offs = offs' 0 0 $ sq
+    offs' _ _ ([]) = []
+    offs' trues pos (False : l) = offs' trues (pos + 1) l
+    offs' trues pos (True : l) = (trues, pos) : (offs' (trues + 1) (pos + 1) l)
+
+_euclidish :: Integer -> Integer -> Rational -> Pattern Bool
+_euclidish n j perc = stack $ map (\pos -> rotR pos $ fastGap (fromIntegral j) $ pure True) tweened
+  where
+    tweened :: [Time]
+    tweened = map (\(n', pos) -> (pos % j) + (((n' % n) - (pos % j)) * perc)) offs
+    offs = offs' 0 0 $ bjorklund (fromIntegral n, fromIntegral j)
+    offs' _ _ ([]) = []
+    offs' trues pos (False : l) = offs' trues (pos + 1) l
+    offs' trues pos (True : l) = (trues, pos) : (offs' (trues + 1) (pos + 1) l)
+
+euclidish :: Pattern Integer -> Pattern Integer -> Pattern Rational -> Pattern Bool
+euclidish a b c = innerJoin $ _euclidish <$> a <* b <* c
+
+eish :: Pattern Integer -> Pattern Integer -> Pattern Rational -> Pattern Bool
+eish = euclidish
+
 distrib :: [Pattern Int] -> Pattern a -> Pattern a
 distrib ps p = do
   p' <- sequence ps
@@ -1459,7 +1487,7 @@ _markovPat :: Int -> Int -> [[Double]] -> Pattern Int
 _markovPat n xi tp =
   setSteps (Just $ toRational n) $
     splitQueries $
-      pattern
+      pattern_
         ( \(State a@(Arc s _) _) ->
             queryArc (listToPat $ runMarkov n tp xi (sam s)) a
         )
@@ -1589,7 +1617,7 @@ fit' cyc n from to p = squeezeJoin $ _fit n mapMasks to
 --  > bd hh SN cp
 --  > bd hh sn CP
 chunk :: Pattern Int -> (Pattern b -> Pattern b) -> Pattern b -> Pattern b
-chunk npat f p = innerJoin $ (\n -> _chunk n f p) <$> npat
+chunk npat f p = keepSteps p $ innerJoin $ (\n -> _chunk n f p) <$> npat
 
 _chunk :: (Integral a) => a -> (Pattern b -> Pattern b) -> Pattern b -> Pattern b
 _chunk n f p
@@ -1600,14 +1628,23 @@ _chunk n f p
 
 -- | DEPRECATED, use 'chunk' with negative numbers instead
 chunk' :: (Integral a1) => Pattern a1 -> (Pattern a2 -> Pattern a2) -> Pattern a2 -> Pattern a2
-chunk' npat f p = innerJoin $ (\n -> _chunk' n f p) <$> npat
+chunk' npat f p = keepSteps p $ innerJoin $ (\n -> _chunk' n f p) <$> npat
 
 -- | DEPRECATED, use '_chunk' with negative numbers instead
 _chunk' :: (Integral a) => a -> (Pattern b -> Pattern b) -> Pattern b -> Pattern b
 _chunk' n f p = _chunk (-n) f p
 
+_fastchunk :: Int -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
+_fastchunk i f pat = while bpat f pat
+  where
+    bpat :: Pattern Bool
+    bpat = _iter' i $ listToPat $ True : (take (i - 1) $ repeat False)
+
+fastchunk :: Pattern Int -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
+fastchunk pata patb patc = keepSteps patc $ innerJoin $ (\a -> _fastchunk a patb patc) <$> pata
+
 chunkinto :: Pattern Int -> (Pattern b -> Pattern b) -> Pattern b -> Pattern b
-chunkinto npat f p = innerJoin $ (\n -> _chunkinto n f p) <$> npat
+chunkinto npat f p = keepSteps p $ innerJoin $ (\n -> _chunkinto n f p) <$> npat
 
 chunkInto :: Pattern Int -> (Pattern b -> Pattern b) -> Pattern b -> Pattern b
 chunkInto = chunkinto
@@ -1811,7 +1848,7 @@ _scramble n = _rearrangeWith (_segment (fromIntegral n) $ _irand n) n
 randrun :: Int -> Pattern Int
 randrun 0 = silence
 randrun n' =
-  splitQueries $ pattern (\(State a@(Arc s _) _) -> events a $ sam s)
+  splitQueries $ pattern_ (\(State a@(Arc s _) _) -> events a $ sam s)
   where
     events a seed = mapMaybe toEv $ zip arcs shuffled
       where
@@ -2405,7 +2442,7 @@ samples' p p' = flip pick <$> p' <*> p
 {-
 scrumple :: Time -> Pattern a -> Pattern a -> Pattern a
 scrumple o p p' = p'' -- overlay p (o `rotR` p'')
-  where p'' = pattern $ \a -> concatMap
+  where p'' = pattern_ $ \a -> concatMap
                               (\((s,d), vs) -> map (\x -> ((s,d),
                                                            snd x
                                                           )
@@ -2430,7 +2467,7 @@ stackwith p ps
     l = fromIntegral $ length ps
 
 {-
-cross f p p' = pattern $ \t -> concat [filter flt $ arc p t,
+cross f p p' = pattern_ $ \t -> concat [filter flt $ arc p t,
                                        filter (not . flt) $ arc p' t
                                       ]
 ]  where flt = f . cyclePos . fst . fst
@@ -2480,7 +2517,7 @@ rangex from to p = exp <$> _range (log from) (log to) p
 --  >    $ slow 2 "c(3,8) a(3,8,2) f(3,8) e(3,8,4)")
 --  >    # sound "superpiano"
 off :: Pattern Time -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
-off tp f p = innerJoin $ (\tv -> _off tv f p) <$> tp
+off tp f p = keepSteps p $ innerJoin $ (\tv -> _off tv f p) <$> tp
 
 _off :: Time -> (Pattern a -> Pattern a) -> Pattern a -> Pattern a
 _off t f p = superimpose (f . (t `rotR`)) p
@@ -2786,7 +2823,7 @@ inv = (not <$>)
 
 -- TODO - test this with analog events
 smooth :: (Fractional a) => Pattern a -> Pattern a
-smooth p = pattern $ \st@(State a cm) -> tween st a $ query monoP (State (midArc a) cm)
+smooth p = pattern_ $ \st@(State a cm) -> tween st a $ query monoP (State (midArc a) cm)
   where
     midArc a = Arc (mid (start a, stop a)) (mid (start a, stop a))
     tween _ _ [] = []
@@ -3027,4 +3064,4 @@ unjoin pieces pat = unjoinfunc pieces id pat
 
 -- | Applies a function to subcycles of a pattern, as defined by the structure of another given pattern.
 into :: Pattern Bool -> (Pattern b -> Pattern b) -> Pattern b -> Pattern b
-into pieces func pat = innerJoin $ unjoinfunc pieces func pat
+into pieces func pat = keepSteps pat $ innerJoin $ unjoinfunc pieces func pat

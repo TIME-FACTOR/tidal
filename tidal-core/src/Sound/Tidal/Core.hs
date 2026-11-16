@@ -36,7 +36,7 @@ import Prelude hiding ((*>), (<*))
 --
 --  > saw = sig $ \t -> mod' (fromRational t) 1
 sig :: (Time -> a) -> Pattern a
-sig f = pattern q
+sig f = pattern_ q
   where
     q (State (Arc s e) _)
       | s > e = []
@@ -336,7 +336,7 @@ append a b = cat [a, b]
 cat :: [Pattern a] -> Pattern a
 cat [] = silence
 cat (p : []) = p
-cat ps = pattern q
+cat ps = pattern_ q
   where
     n = length ps
     q st = concatMap (f st) $ arcCyclesZW (arc st)
@@ -433,7 +433,7 @@ overlay = (<>)
 -- | Serialises a pattern so there's only one event playing at any one
 -- time, making it /monophonic/. Events which start/end earlier are given priority.
 mono :: Pattern a -> Pattern a
-mono p = pattern $ \(State a cm) -> flatten $ query p (State a cm)
+mono p = pattern_ $ \(State a cm) -> flatten $ query p (State a cm)
   where
     flatten :: [Event a] -> [Event a]
     flatten = mapMaybe constrainPart . truncateOverlaps . sortOn whole
@@ -480,9 +480,15 @@ stack pats = (foldr overlay silence pats) {steps = t}
 (<~) :: Pattern Time -> Pattern a -> Pattern a
 (<~) = patternify' rotL
 
+early :: Pattern Time -> Pattern a -> Pattern a
+early = (<~)
+
 -- | Shifts a pattern forward in time by the given amount, expressed in cycles
 (~>) :: Pattern Time -> Pattern a -> Pattern a
 (~>) = patternify' rotR
+
+late :: Pattern Time -> Pattern a -> Pattern a
+late = (~>)
 
 -- | Slow down a pattern by the factors in the given time pattern, "squeezing"
 --  the pattern to fit the slot given in the time pattern. It is the slow analogue
@@ -692,10 +698,10 @@ _getP :: a -> (Value -> Maybe a) -> Pattern Value -> Pattern a
 _getP d f pat = fromMaybe d . f <$> pat
 
 _cX :: a -> (Value -> Maybe a) -> String -> Pattern a
-_cX d f s = pattern $ \(State a m) -> queryArc (maybe (pure d) (_getP d f . valueToPattern) $ Map.lookup s m) a
+_cX d f s = pattern_ $ \(State a m) -> queryArc (maybe (pure d) (_getP d f . valueToPattern) $ Map.lookup s m) a
 
 _cX_ :: (Value -> Maybe a) -> String -> Pattern a
-_cX_ f s = pattern $ \(State a m) -> queryArc (maybe silence (_getP_ f . valueToPattern) $ Map.lookup s m) a
+_cX_ f s = pattern_ $ \(State a m) -> queryArc (maybe silence (_getP_ f . valueToPattern) $ Map.lookup s m) a
 
 cF :: Double -> String -> Pattern Double
 cF d = _cX d getF

@@ -155,14 +155,14 @@ getNote expr = case expr of
     _ -> Nothing
 
 fromInt :: MondoPat a b -> Maybe (T.Pattern Int -> T.Pattern b)
-fromInt mpat = case mpat.pat of
-    PNote -> Just (mpat.patToControl . fmap fromIntegral)
-    PInt -> Just mpat.patToControl
+fromInt mpat = case mpat of
+    MondoPat{ pat = PNote, patToControl = to } -> Just (to . fmap fromIntegral)
+    MondoPat{ pat = PInt, patToControl = to } -> Just to
     _ -> Nothing
 
 fromNote :: MondoPat a b -> Maybe (T.Pattern T.Note -> T.Pattern b)
-fromNote mpat = case mpat.pat of
-    PNote -> Just mpat.patToControl
+fromNote mpat = case mpat of
+    MondoPat{ pat = PNote, patToControl = to } -> Just to
     _ -> Nothing
 
 noteToInt :: T.Note -> Int
